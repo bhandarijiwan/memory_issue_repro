@@ -1,0 +1,159 @@
+diff --git a/node_modules/react-native/ReactCommon/jsi/JSCRuntime.cpp b/node_modules/react-native/ReactCommon/jsi/JSCRuntime.cpp
+index 6656eee..6effa58 100644
+--- a/node_modules/react-native/ReactCommon/jsi/JSCRuntime.cpp
++++ b/node_modules/react-native/ReactCommon/jsi/JSCRuntime.cpp
+@@ -487,11 +487,19 @@ jsi::PropNameID JSCRuntime::createPropNameIDFromString(const jsi::String& str) {
+ }
+ 
+ std::string JSCRuntime::utf8(const jsi::PropNameID& sym) {
+-  return JSStringToSTLString(stringRef(sym));
++  JSStringRef strRef = stringRef(sym);
++  std::string result = JSStringToSTLString(strRef);
++  JSStringRelease(strRef);
++  return result;
+ }
+ 
+ bool JSCRuntime::compare(const jsi::PropNameID& a, const jsi::PropNameID& b) {
+-  return JSStringIsEqual(stringRef(a), stringRef(b));
++  JSStringRef strRef1 = stringRef(a);
++  JSStringRef strRef2 = stringRef(b);
++  bool result = JSStringIsEqual(strRef1, strRef2);
++  JSStringRelease(strRef1);
++  JSStringRelease(strRef2);
++  return result;
+ }
+ 
+ jsi::String JSCRuntime::createStringFromAscii(const char* str, size_t length) {
+@@ -506,11 +514,16 @@ jsi::String JSCRuntime::createStringFromUtf8(
+     size_t length) {
+   std::string tmp(reinterpret_cast<const char*>(str), length);
+   JSStringRef stringRef = JSStringCreateWithUTF8CString(tmp.c_str());
+-  return createString(stringRef);
++  auto result = createString(stringRef);
++  JSStringRelease(stringRef);
++  return result;
+ }
+ 
+ std::string JSCRuntime::utf8(const jsi::String& str) {
+-  return JSStringToSTLString(stringRef(str));
++  JSStringRef strRef = stringRef(str);
++  std::string result =  JSStringToSTLString(strRef);
++  JSStringRelease(strRef);
++  return result;
+ }
+ 
+ jsi::Object JSCRuntime::createObject() {
+@@ -667,7 +680,9 @@ jsi::Value JSCRuntime::getProperty(
+     const jsi::String& name) {
+   JSObjectRef objRef = objectRef(obj);
+   JSValueRef exc = nullptr;
+-  JSValueRef res = JSObjectGetProperty(ctx_, objRef, stringRef(name), &exc);
++  JSStringRef strRef = stringRef(name);
++  JSValueRef res = JSObjectGetProperty(ctx_, objRef, strRef, &exc);
++  //JSStringRelease(strRef);
+   checkException(exc);
+   return createValue(res);
+ }
+@@ -677,21 +692,29 @@ jsi::Value JSCRuntime::getProperty(
+     const jsi::PropNameID& name) {
+   JSObjectRef objRef = objectRef(obj);
+   JSValueRef exc = nullptr;
+-  JSValueRef res = JSObjectGetProperty(ctx_, objRef, stringRef(name), &exc);
++  JSStringRef strRef = stringRef(name);
++  JSValueRef res = JSObjectGetProperty(ctx_, objRef, strRef, &exc);
++  //JSStringRelease(strRef);
+   checkException(exc);
+   return createValue(res);
+ }
+ 
+ bool JSCRuntime::hasProperty(const jsi::Object& obj, const jsi::String& name) {
+   JSObjectRef objRef = objectRef(obj);
+-  return JSObjectHasProperty(ctx_, objRef, stringRef(name));
++  JSStringRef strRef = stringRef(name);
++  bool result =  JSObjectHasProperty(ctx_, objRef, strRef);
++  //JSStringRelease(strRef);
++  return result;
+ }
+ 
+ bool JSCRuntime::hasProperty(
+     const jsi::Object& obj,
+     const jsi::PropNameID& name) {
+   JSObjectRef objRef = objectRef(obj);
+-  return JSObjectHasProperty(ctx_, objRef, stringRef(name));
++  JSStringRef strRef = stringRef(name);
++  bool result =  JSObjectHasProperty(ctx_, objRef, strRef);
++  //JSStringRelease(strRef);
++  return result;
+ }
+ 
+ void JSCRuntime::setPropertyValue(
+@@ -699,13 +722,15 @@ void JSCRuntime::setPropertyValue(
+     const jsi::PropNameID& name,
+     const jsi::Value& value) {
+   JSValueRef exc = nullptr;
++  JSStringRef strRef = stringRef(name);
+   JSObjectSetProperty(
+       ctx_,
+       objectRef(object),
+-      stringRef(name),
++      strRef,
+       valueRef(value),
+       kJSPropertyAttributeNone,
+       &exc);
++  //JSStringRelease(strRef);
+   checkException(exc);
+ }
+ 
+@@ -714,13 +739,15 @@ void JSCRuntime::setPropertyValue(
+     const jsi::String& name,
+     const jsi::Value& value) {
+   JSValueRef exc = nullptr;
++  JSStringRef strRef = stringRef(name);
+   JSObjectSetProperty(
+       ctx_,
+       objectRef(object),
+-      stringRef(name),
++      strRef,
+       valueRef(value),
+       kJSPropertyAttributeNone,
+       &exc);
++  //JSStringRelease(strRef);
+   checkException(exc);
+ }
+ 
+@@ -1081,7 +1108,12 @@ jsi::Value JSCRuntime::callAsConstructor(
+ 
+ bool JSCRuntime::strictEquals(const jsi::String& a, const jsi::String& b)
+     const {
+-  return JSStringIsEqual(stringRef(a), stringRef(b));
++      JSStringRef strRef1 = stringRef(a);
++      JSStringRef strRef2 = stringRef(b);
++      bool result =  JSStringIsEqual(strRef1, strRef2);
++      JSStringRelease(strRef1);
++      JSStringRelease(strRef2);
++      return result;
+ }
+ 
+ bool JSCRuntime::strictEquals(const jsi::Object& a, const jsi::Object& b)
+@@ -1156,7 +1188,8 @@ jsi::Value JSCRuntime::createValue(JSValueRef value) const {
+     return result;
+   } else if (JSValueIsObject(ctx_, value)) {
+     JSObjectRef objRef = JSValueToObject(ctx_, value, nullptr);
+-    return jsi::Value(createObject(objRef));
++    auto result = jsi::Value(createObject(objRef));
++    return result;
+   } else {
+     // WHAT ARE YOU
+     abort();
+@@ -1174,7 +1207,10 @@ JSValueRef JSCRuntime::valueRef(const jsi::Value& value) {
+   } else if (value.isNumber()) {
+     return JSValueMakeNumber(ctx_, value.getNumber());
+   } else if (value.isString()) {
+-    return JSValueMakeString(ctx_, stringRef(value.getString(*this)));
++    JSStringRef strRef = stringRef(value.getString(*this));
++    JSValueRef valRef =  JSValueMakeString(ctx_, strRef);
++    //JSStringRelease(strRef);
++    return valRef;
+   } else if (value.isObject()) {
+     return objectRef(value.getObject(*this));
+   } else {
