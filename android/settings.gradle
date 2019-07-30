@@ -1,0 +1,3 @@
+rootProject.name = 'memory_issue_repro'
+
+include ':app'
